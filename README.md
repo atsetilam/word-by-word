@@ -2,6 +2,8 @@
 
 `word-by-word` is a simple, distraction-free desktop app that displays a plain text file *one word at a time*. You can adjust the speed (in milliseconds per word) and text size, helping you stay engaged while reading. Designed with love for folks with ADHD—or anyone who finds it hard to stay focused on long paragraphs.
 
+<img width="912" alt="Screenshot 2025-06-07 alle 00 09 26" src="https://github.com/user-attachments/assets/f48fc1fd-af0a-4d41-bc9e-ab033e0ec41a" />
+
 ## Why?
 
 Reading long blocks of text can be difficult for people with ADHD, as attention often drifts or shifts too quickly. This tool takes a different approach: by showing just one word at a time (and fast!!), it creates a sense of novelty and momentum that keeps your brain engaged.
