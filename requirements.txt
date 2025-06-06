@@ -1,2 +1,8 @@
+# For video processing
+opencv-python
+
+# For image manipulation (PIL) and displaying images in Tkinter
+Pillow
+
+# For drag-and-drop file support (optional)
 tkinterdnd2
-# Tkinter is included with standard Python installs on most systems.
