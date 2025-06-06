@@ -1,4 +1,4 @@
-**ADHD-friendly text reader.**
+# ADHD-friendly text reader.
 
 `word-by-word` is a simple, distraction-free desktop app that displays a plain text file *one word at a time*. You can adjust the speed (in milliseconds per word) and text size, helping you stay engaged while reading. Designed with love for folks with ADHD—or anyone who finds it hard to stay focused on long paragraphs.
 
