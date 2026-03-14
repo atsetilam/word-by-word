@@ -1,8 +1,10 @@
-# ADHD-friendly text reader.
+# word-by-word
 
-`word-by-word` is a simple, distraction-free desktop app that displays a plain text file *one word at a time*. You can adjust the speed (in milliseconds per word) and text size, helping you stay engaged while reading. Designed with love for folks with ADHD—or anyone who finds it hard to stay focused on long paragraphs.
+> **This is v2** of word-by-word, rewritten from the ground up as an Electron + React desktop application. The original v1 was a Python desktop app built with `tkinter` and `tkinterdnd2`. If you're looking for the old version, check the git history. Though I'd advise against it—the original was a messy proof of concept held together by duct tape and pure hyperfocus.
 
-<img width="912" alt="Screenshot 2025-06-07 alle 00 09 26" src="https://github.com/user-attachments/assets/f48fc1fd-af0a-4d41-bc9e-ab033e0ec41a" />
+**ADHD-friendly text reader.**
+
+`word-by-word` is a distraction-free desktop app that displays a plain text file *one word at a time*. You can adjust the speed and text size, and optionally set a looping video — local or from YouTube — as a background. Designed for folks with ADHD, or anyone else whose brain decides to go on an unapproved vacation halfway through a long paragraph.
 
 ## Why?
 
@@ -18,79 +20,121 @@ The idea was inspired by a demo video showcasing a similar application, original
 
 ## Features
 
-* ✅ Drag-and-drop support for `.txt` files (thanks to `tkinterdnd2`)
-* 🕒 Adjustable word turnover speed (via slider or input field)
-* 🔠 Scalable text size for better readability
-* 🧘 Minimal interface for reduced distraction
-* 📺 Optional, dynamic video background for a more engaging experience
+- Drag-and-drop `.txt` file ingestion — drop anywhere on the window
+- Word-by-word playback with play, pause, and restart controls
+- Adjustable speed (50ms – 2000ms per word), live during playback
+- Scalable word display (24px – 200px) with proportionally scaled text stroke
+- Optional looping video background — local file or YouTube URL
+- Independent play/pause for the reader and the video
+- Auto-hiding controls overlay (fades out after 3 seconds of inactivity)
+- Keyboard shortcuts (see below)
+
+## Requirements
+
+- [Node.js](https://nodejs.org/) (v18 or later recommended)
 
 ## Installation
 
-First, make sure you have Python 3 installed. You can check by running:
+### macOS
+
+1. Check if Homebrew is installed:
+
+   ```bash
+   which brew
+   ```
+
+   If it prints nothing, install Homebrew first:
+
+   ```bash
+   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+   ```
+
+2. Install Node.js:
+
+   ```bash
+   brew install node
+   ```
+
+3. Clone the repo and install dependencies:
+
+   ```bash
+   git clone https://github.com/atsetilam/word-by-word.git
+   cd word-by-word
+   npm install
+   ```
+
+### Windows
+
+1. Download and run the Node.js installer from [nodejs.org](https://nodejs.org/).
+
+2. Open PowerShell or Command Prompt, then clone and install:
+
+   ```powershell
+   git clone https://github.com/atsetilam/word-by-word.git
+   cd word-by-word
+   npm install
+   ```
+
+### Linux
+
+Using [nvm](https://github.com/nvm-sh/nvm) is the recommended approach and works on any distro:
 
 ```bash
-which python
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/HEAD/install.sh | bash
+# Restart your terminal, then:
+nvm install --lts
 ```
 
-Or, on some systems:
+Then clone and install:
 
 ```bash
-which python3
-```
-
-Then, install the required dependency:
-
-```bash
-pip install -r requirements.txt
+git clone https://github.com/atsetilam/word-by-word.git
+cd word-by-word
+npm install
 ```
 
 ## Usage
 
-1. Open a terminal and navigate to the folder where `main.py` is located:
+```bash
+npm start
+```
 
-   ```bash
-   cd path/to/your/project
-   ```
-   
-2. Run the app:
+This launches the Electron app. The app runs a small local HTTP server internally — this is required for the YouTube background feature to work correctly.
 
-   ```bash
-   python main.py
-   ```
-   
-3. Drag a `.txt` file into the app window, or open it by pressing the button on the GUI if you didn't install `tkinterdnd2`.
+### Basic workflow
 
-4. Use the slider or input field to set the word speed (in milliseconds per word).
+1. Drop a `.txt` file anywhere on the window.
+2. Press **Play** or hit **Space** to start reading.
+3. Drag the speed slider to adjust pace. Changes apply immediately, mid-playback.
+4. Drag the size slider to scale the word up or down.
 
-5. Adjust text size as needed.
+### Video background
 
-6. Start reading—word by word.
+- **Local file:** open the settings panel (gear icon), select *Local*, and pick a video file. You can also drop a video file directly onto the window.
+- **YouTube:** open the settings panel, select *YouTube*, and paste a YouTube URL into the input field. Standard `watch?v=`, `youtu.be/`, and `embed/` formats are all accepted.
+- Switch between *Off*, *Local*, and *YouTube* at any time. Each source remembers its position and resumes when re-selected.
 
-### Enabling the Video Background
+### Keyboard shortcuts
 
-You can enable a video to play in the background for added visual stimulation.
+| Key | Action |
+|-----|--------|
+| `Space` | Play / Pause reader |
+| `R` | Restart reader |
+| `M` | Mute / Unmute video |
+| `↑` / `↓` | Speed up / slow down |
+| `Escape` | Show / hide controls |
 
-1.  **Place your video file:** For simplicity, place your desired video file (e.g., `.mp4`) in the same directory as the `main.py` script.
+## Building a distributable
 
-2.  **Edit the script:** Open `main.py` in a text editor and find the following line inside the `__init__` method:
-    ```python
-    self.video_path = "path/to/your/video.mp4"
-    ```
+```bash
+npm run dist
+```
 
-3.  **Update the path:** Change the placeholder path to the name of your video file. For example, to use the provided non-copyrighted video (link below), you would change it to:
-    ```python
-    self.video_path = "subway_surfer_ffmpeg_480p.mp4"
-    ```
+This uses `electron-builder` to package the app. Output goes to the `dist/` folder.
 
-4.  **Run the app:** Launch the application and check the "Video Playback" box in the top bar to enable the feature.
+## Asset information
 
-> **Note:** Performance may vary depending on your computer's hardware and the resolution of the video you choose. Higher-resolution videos may require more processing power. Currently, the video is rendered via CPU, so it may be slow on older or less powerful machines. But compiling OpenCV to use GPU acceleration would be a good way to improve performance. I'm just too lazy to do that.
-
-## Asset Information
-
-The application includes an optional video background for visual stimulation. The default video is intended to be a gameplay clip from Subway Surfers, which you may find [here](https://drive.google.com/file/d/1C1itkeNvUKgCe7vVKyeV1vBcbzzUp9xT/view?usp=sharing).
-
-The original video was shared by its creators, SYBO APS (a company incorporated and registered in Denmark), who have explicitly waived any copyright claim. It is available at this [link](https://www.youtube.com/watch?v=i0M4ARe9v0Y)
+The repo does not ship a video file. The original v1 used a Subway Surfers gameplay clip shared by its creators, SYBO APS, who waived copyright. That clip is available [here](https://www.youtube.com/watch?v=i0M4ARe9v0Y) if you want a ready-made background.
 
 ## License
 
