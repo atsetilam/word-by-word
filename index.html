@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>word-by-word</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { width: 100%; height: 100%; overflow: hidden; background: #111; }
+
+    /* Slider track */
+    input[type=range] {
+      -webkit-appearance: none; appearance: none;
+      height: 3px; background: rgba(255,255,255,0.15);
+      border-radius: 2px; outline: none; cursor: pointer;
+    }
+    /* Slider thumb */
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 11px; height: 11px;
+      background: rgba(255,255,255,0.7); border-radius: 50%; cursor: pointer;
+      transition: background 0.15s;
+    }
+    input[type=range]:hover::-webkit-slider-thumb { background: rgba(255,255,255,0.95); }
+
+    /* Icon buttons in bar */
+    .bar-btn {
+      background: none; border: none;
+      color: rgba(255,255,255,0.6); border-radius: 5px;
+      padding: 4px 7px; cursor: pointer;
+      font-size: 15px; line-height: 1; font-family: sans-serif;
+      transition: color 0.12s, background 0.12s;
+    }
+    .bar-btn:hover:not(:disabled) { color: rgba(255,255,255,0.95); background: rgba(255,255,255,0.07); }
+    .bar-btn:disabled { color: rgba(255,255,255,0.18); cursor: default; }
+    .bar-btn.active { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.9); }
+
+    /* Source tab buttons */
+    .src-tab {
+      background: none; border: none;
+      padding: 3px 9px; border-radius: 4px;
+      font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+      font-family: sans-serif; cursor: pointer;
+      transition: color 0.12s, background 0.12s;
+    }
+    .src-tab.active { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.9); }
+    .src-tab:not(.active) { color: rgba(255,255,255,0.35); }
+    .src-tab:not(.active):hover { color: rgba(255,255,255,0.65); }
+
+    /* Settings flyout inputs */
+    .flyout-input {
+      flex: 1; background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 4px;
+      color: #fff; font-size: 12px; padding: 5px 9px;
+      outline: none; font-family: sans-serif;
+    }
+    .flyout-input:focus { border-color: rgba(255,255,255,0.3); }
+
+    .flyout-btn {
+      background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 4px; color: rgba(255,255,255,0.65);
+      padding: 5px 10px; cursor: pointer; font-size: 12px; font-family: sans-serif;
+      white-space: nowrap; transition: background 0.12s;
+    }
+    .flyout-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    function extractYouTubeId(url) {
+      const m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+      return m ? m[1] : null;
+    }
+    function calcStroke(fontSize) {
+      return Math.min(Math.max(fontSize * 0.015, 1), 4);
+    }
+
+    // ── Small UI primitives ───────────────────────────────────────────────────
+    function Divider() {
+      return <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.1)', margin: '0 10px', flexShrink: 0 }} />;
+    }
+    function Spacer({ w = 6 }) {
+      return <div style={{ width: w, flexShrink: 0 }} />;
+    }
+    function SliderGroup({ label, min, max, step, value, onChange, readout, width }) {
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: 'sans-serif' }}>
+          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.07em' }}>{label}</span>
+          <input type="range" min={min} max={max} step={step} value={value}
+            onChange={e => onChange(Number(e.target.value))}
+            style={{ width }} />
+          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', minWidth: 38, textAlign: 'right',
+            fontVariantNumeric: 'tabular-nums' }}>
+            {readout}
+          </span>
+        </div>
+      );
+    }
+
+    // ── WordDisplay ───────────────────────────────────────────────────────────
+    function WordDisplay({ word, fontSize }) {
+      const sw = calcStroke(fontSize);
+      return (
+        <div style={{
+          position: 'absolute', inset: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 10, pointerEvents: 'none', userSelect: 'none',
+        }}>
+          <span style={{
+            fontSize: fontSize + 'px',
+            fontFamily: '"Georgia", "Times New Roman", serif',
+            fontWeight: 700, color: '#f0f0f0',
+            WebkitTextStroke: sw + 'px #111',
+            paintOrder: 'stroke fill',
+            lineHeight: 1, letterSpacing: '-0.01em',
+            textAlign: 'center', maxWidth: '90vw', wordBreak: 'break-word',
+          }}>
+            {word}
+          </span>
+        </div>
+      );
+    }
+
+    // ── DropZone ──────────────────────────────────────────────────────────────
+    function DropZone({ hasFile, onTextFile, onVideoFile }) {
+      const [dragging, setDragging] = useState(false);
+      const [feedback, setFeedback] = useState('');
+      const counter = useRef(0);
+
+      function flash(msg) { setFeedback(msg); setTimeout(() => setFeedback(''), 1800); }
+      function onDragEnter(e) { e.preventDefault(); counter.current++; setDragging(true); }
+      function onDragOver(e)  { e.preventDefault(); }
+      function onDragLeave(e) { e.preventDefault(); counter.current--; if (counter.current === 0) setDragging(false); }
+      function onDrop(e) {
+        e.preventDefault(); counter.current = 0; setDragging(false);
+        const file = e.dataTransfer.files[0];
+        if (!file) return;
+        if (file.type === 'text/plain' || file.name.endsWith('.txt')) onTextFile(file);
+        else if (file.type.startsWith('video/')) onVideoFile(file);
+        else flash('Only .txt or video files accepted');
+      }
+
+      return (
+        <div onDragEnter={onDragEnter} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
+          style={{
+            position: 'absolute', inset: 0, zIndex: 20,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexDirection: 'column', gap: 12,
+            background: (!hasFile && dragging) ? 'rgba(255,255,255,0.04)' : 'transparent',
+            border: hasFile ? 'none' : dragging ? '2px dashed rgba(255,255,255,0.4)' : '2px dashed rgba(255,255,255,0.1)',
+            transition: 'background 0.15s, border-color 0.15s',
+            pointerEvents: hasFile ? 'none' : 'auto',
+          }}
+        >
+          {!hasFile && (
+            <>
+              <svg width="38" height="38" viewBox="0 0 24 24" fill="none"
+                stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="12" y1="18" x2="12" y2="12"/>
+                <line x1="9" y1="15" x2="15" y2="15"/>
+              </svg>
+              <p style={{ color: 'rgba(255,255,255,0.25)', fontSize: 12,
+                letterSpacing: '0.07em', fontFamily: 'sans-serif', textTransform: 'uppercase' }}>
+                Drop a .txt file to begin
+              </p>
+            </>
+          )}
+          {feedback && (
+            <div style={{
+              position: 'absolute', bottom: 90,
+              background: 'rgba(190,45,45,0.92)', color: '#fff',
+              padding: '6px 14px', borderRadius: 4, fontSize: 13, fontFamily: 'sans-serif',
+              pointerEvents: 'none',
+            }}>
+              {feedback}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ── VideoBackground ───────────────────────────────────────────────────────
+    function VideoBackground({ activeSource, localUrl, muted, videoPaused, youtubeId, ytApiReady, ytReadyRef, ytPlayerRef }) {
+      const videoRef      = useRef(null);
+      const ytContainerRef = useRef(null);
+      const prevSourceRef = useRef('off');
+
+      // Local video mute sync
+      useEffect(() => { if (videoRef.current) videoRef.current.muted = muted; }, [muted]);
+
+      // Local video src
+      useEffect(() => {
+        if (!videoRef.current || !localUrl) return;
+        videoRef.current.src = localUrl;
+        if (activeSource === 'local' && !videoPaused) videoRef.current.play().catch(() => {});
+      }, [localUrl]);
+
+      // Source switching — pause old, start new (respecting videoPaused)
+      useEffect(() => {
+        const prev = prevSourceRef.current;
+        const next = activeSource;
+        if (prev === next) return;
+        prevSourceRef.current = next;
+        const vid = videoRef.current;
+
+        const pauseLocal = () => { try { if (vid && !vid.paused) vid.pause(); } catch(e) {} };
+        const playLocal  = () => { try { if (vid && localUrl && !videoPaused) vid.play().catch(() => {}); } catch(e) {} };
+        const pauseYT    = () => { try { if (ytReadyRef.current && ytPlayerRef.current) ytPlayerRef.current.pauseVideo(); } catch(e) {} };
+        const playYT     = () => { try { if (ytReadyRef.current && ytPlayerRef.current && !videoPaused) ytPlayerRef.current.playVideo(); } catch(e) {} };
+
+        if (prev === 'local')   pauseLocal();
+        if (prev === 'youtube') pauseYT();
+        if (next === 'local')   playLocal();
+        if (next === 'youtube') playYT();
+      }, [activeSource, localUrl]);
+
+      // Video play/pause control (independent of source switching)
+      useEffect(() => {
+        const vid = videoRef.current;
+        if (activeSource === 'local' && vid) {
+          if (videoPaused) { try { vid.pause(); } catch(e) {} }
+          else { try { vid.play().catch(() => {}); } catch(e) {} }
+        } else if (activeSource === 'youtube' && ytReadyRef.current && ytPlayerRef.current) {
+          try {
+            if (videoPaused) ytPlayerRef.current.pauseVideo();
+            else ytPlayerRef.current.playVideo();
+          } catch(e) {}
+        }
+      }, [videoPaused, activeSource]);
+
+      // YouTube player init/swap
+      useEffect(() => {
+        if (!youtubeId || !ytReadyRef.current) return;
+        if (ytPlayerRef.current) {
+          try {
+            ytPlayerRef.current.loadVideoById(youtubeId);
+            if (activeSource === 'youtube' && !videoPaused) ytPlayerRef.current.playVideo();
+            else ytPlayerRef.current.pauseVideo();
+          } catch(e) {}
+          return;
+        }
+        ytPlayerRef.current = new YT.Player('yt-player', {
+          videoId: youtubeId,
+          playerVars: {
+            autoplay: (activeSource === 'youtube' && !videoPaused) ? 1 : 0,
+            controls: 0, showinfo: 0, modestbranding: 1,
+            loop: 1, playlist: youtubeId, mute: 1, enablejsapi: 1, rel: 0,
+          },
+          events: {
+            onReady(e) {
+              if (muted) e.target.mute(); else e.target.unMute();
+              if (activeSource === 'youtube' && !videoPaused) e.target.playVideo();
+            },
+          },
+        });
+      }, [youtubeId, ytApiReady]);
+
+      // YT mute sync
+      useEffect(() => {
+        if (!ytPlayerRef.current || !ytReadyRef.current) return;
+        try { muted ? ytPlayerRef.current.mute() : ytPlayerRef.current.unMute(); } catch(e) {}
+      }, [muted]);
+
+      return (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
+          <video ref={videoRef} loop muted playsInline style={{
+            position: 'absolute', inset: 0, width: '100%', height: '100%',
+            objectFit: 'cover',
+            visibility: activeSource === 'local' ? 'visible' : 'hidden',
+            opacity: activeSource === 'local' ? 1 : 0,
+            transition: 'opacity 0.3s',
+          }} />
+          <div ref={ytContainerRef} style={{
+            position: 'absolute', inset: 0, width: '100%', height: '100%',
+            visibility: activeSource === 'youtube' ? 'visible' : 'hidden',
+            opacity: activeSource === 'youtube' ? 1 : 0,
+            transition: 'opacity 0.3s',
+            pointerEvents: 'none',
+          }}>
+            <div id="yt-player" style={{ width: '100%', height: '100%' }} />
+          </div>
+        </div>
+      );
+    }
+
+    // ── SettingsFlyout ────────────────────────────────────────────────────────
+    function SettingsFlyout({ onLocalVideoFile, onYouTubeUrl, ytId }) {
+      const [ytInput, setYtInput] = useState('');
+      const [ytError, setYtError] = useState('');
+
+      function handleLoad() {
+        const id = extractYouTubeId(ytInput.trim());
+        if (!id) { setYtError('Could not find a YouTube video ID'); return; }
+        setYtError('');
+        onYouTubeUrl(id);
+        setYtInput('');
+      }
+
+      return (
+        <div style={{
+          position: 'absolute', bottom: 'calc(100% + 10px)', right: 0,
+          background: 'rgba(14,14,14,0.97)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: 8, padding: '14px 16px', width: 290,
+          display: 'flex', flexDirection: 'column', gap: 14,
+          boxShadow: '0 6px 30px rgba(0,0,0,0.6)',
+          fontFamily: 'sans-serif',
+        }}>
+          {/* Local video */}
+          <div>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.07em', marginBottom: 7 }}>
+              LOCAL VIDEO
+            </div>
+            <label className="flyout-btn" style={{ display: 'inline-block', cursor: 'pointer' }}>
+              Choose file
+              <input type="file" accept="video/*"
+                onChange={e => { const f = e.target.files[0]; if (f) onLocalVideoFile(f); }}
+                style={{ display: 'none' }} />
+            </label>
+          </div>
+
+          {/* YouTube URL */}
+          <div>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.07em', marginBottom: 7 }}>
+              YOUTUBE URL
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                className="flyout-input"
+                type="text"
+                placeholder="youtube.com/watch?v=..."
+                value={ytInput}
+                onChange={e => { setYtInput(e.target.value); setYtError(''); }}
+                onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') handleLoad(); }}
+              />
+              <button className="flyout-btn" onClick={handleLoad}>Load</button>
+            </div>
+            {ytError && <div style={{ color: '#c05050', fontSize: 11, marginTop: 5 }}>{ytError}</div>}
+            {ytId && !ytError && <div style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11, marginTop: 5 }}>Loaded: {ytId}</div>}
+          </div>
+        </div>
+      );
+    }
+
+    // ── ControlBar ────────────────────────────────────────────────────────────
+    function ControlBar({
+      status, speed, fontSize,
+      videoPaused, activeSource, muted,
+      hasLocal, hasYoutube,
+      onPlay, onPause, onRestart,
+      onSpeedChange, onFontSizeChange,
+      onVideoPlayPause, onMuteToggle, onSourceChange,
+      onYouTubeUrl, onLocalVideoFile, ytId,
+      flyoutOpen, onFlyoutToggle,
+      hideTimerRef, resetHideTimer,
+    }) {
+      const [srcHint, setSrcHint] = useState('');
+
+      function handleSourceClick(src) {
+        // src is 'off' | 'local' | 'yt'
+        const actual = src === 'yt' ? 'youtube' : src;
+        if (actual === 'local' && !hasLocal) {
+          setSrcHint('No local video loaded'); setTimeout(() => setSrcHint(''), 1600); return;
+        }
+        if (actual === 'youtube' && !hasYoutube) {
+          setSrcHint('No YouTube URL loaded'); setTimeout(() => setSrcHint(''), 1600); return;
+        }
+        onSourceChange(actual);
+      }
+
+      const videoActive = activeSource !== 'off';
+      const canRead = status !== 'stopped';
+      const isPlaying = status === 'playing';
+      const isFinished = status === 'finished';
+
+      return (
+        <div style={{ position: 'relative' }}
+          onMouseEnter={() => clearTimeout(hideTimerRef.current)}
+          onMouseLeave={resetHideTimer}
+        >
+          {/* Flyout */}
+          {flyoutOpen && (
+            <SettingsFlyout
+              onLocalVideoFile={onLocalVideoFile}
+              onYouTubeUrl={onYouTubeUrl}
+              ytId={ytId}
+            />
+          )}
+
+          {/* Source hint tooltip */}
+          {srcHint && (
+            <div style={{
+              position: 'absolute', bottom: 'calc(100% + 10px)', left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'rgba(10,10,10,0.9)', border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: 4, padding: '4px 12px', whiteSpace: 'nowrap',
+              color: 'rgba(255,255,255,0.6)', fontSize: 12, fontFamily: 'sans-serif',
+              pointerEvents: 'none',
+            }}>
+              {srcHint}
+            </div>
+          )}
+
+          {/* The bar */}
+          <div style={{
+            display: 'flex', alignItems: 'center', height: 48,
+            padding: '0 14px', gap: 2,
+            background: 'rgba(0,0,0,0.62)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: 12,
+          }}>
+
+            {/* ── Reader transport ── */}
+            <button className="bar-btn" onClick={onRestart} disabled={!canRead} title="Restart (R)">↺</button>
+            <button className="bar-btn" onClick={isPlaying ? onPause : onPlay} disabled={!canRead} title="Play/Pause (Space)">
+              {isPlaying ? '⏸' : isFinished ? '⟳' : '▶'}
+            </button>
+
+            <Spacer w={6} />
+
+            {/* ── Reader params ── */}
+            <SliderGroup label="SPEED" min={50} max={2000} step={10}
+              value={speed} onChange={onSpeedChange} readout={speed + 'ms'} width={88} />
+
+            <Spacer w={10} />
+
+            <SliderGroup label="SIZE" min={24} max={200} step={2}
+              value={fontSize} onChange={onFontSizeChange} readout={fontSize + 'px'} width={78} />
+
+            <Divider />
+
+            {/* ── Video transport ── */}
+            <button className="bar-btn" onClick={onVideoPlayPause} disabled={!videoActive}
+              title="Video play/pause">
+              {(!videoActive || videoPaused) ? '▶' : '⏸'}
+            </button>
+            <button className="bar-btn" onClick={onMuteToggle} disabled={!videoActive} title="Mute/Unmute (M)">
+              {muted ? '🔇' : '🔊'}
+            </button>
+
+            <Spacer w={6} />
+
+            {/* ── Source tabs ── */}
+            {['off', 'local', 'yt'].map(src => {
+              const actualSrc = src === 'yt' ? 'youtube' : src;
+              const isActive = activeSource === actualSrc;
+              return (
+                <button key={src} className={'src-tab' + (isActive ? ' active' : '')}
+                  onClick={() => handleSourceClick(src)}>
+                  {src}
+                </button>
+              );
+            })}
+
+            <Divider />
+
+            {/* ── Settings ── */}
+            <button className={'bar-btn' + (flyoutOpen ? ' active' : '')}
+              onClick={onFlyoutToggle} title="Settings">
+              ⚙
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // ── App ───────────────────────────────────────────────────────────────────
+    function App() {
+      // Reader state
+      const [words, setWords]               = useState([]);
+      const [currentIndex, setCurrentIndex] = useState(0);
+      const [status, setStatus]             = useState('stopped');
+      const [speed, setSpeed]               = useState(400);
+      const [fontSize, setFontSize]         = useState(72);
+
+      // Video state
+      const [activeSource, setActiveSource] = useState('off');
+      const [localUrl, setLocalUrl]         = useState(null);
+      const [youtubeId, setYoutubeId]       = useState(null);
+      const [muted, setMuted]               = useState(true);
+      const [videoPaused, setVideoPaused]   = useState(false);
+
+      // UI state
+      const [controlsVisible, setControlsVisible] = useState(true);
+      const [flyoutOpen, setFlyoutOpen]           = useState(false);
+
+      // Refs
+      const timeoutRef     = useRef(null);
+      const statusRef      = useRef('stopped');
+      const speedRef       = useRef(400);
+      const wordsRef       = useRef([]);
+      const indexRef       = useRef(0);
+      const [ytApiReady, setYtApiReady] = useState(false);
+      const ytReadyRef     = useRef(false);
+      const ytPlayerRef    = useRef(null);
+      const localUrlRef    = useRef(null);
+      const hideTimer      = useRef(null);
+      const flyoutOpenRef  = useRef(false);
+
+      // Keep refs in sync
+      useEffect(() => { statusRef.current = status; },       [status]);
+      useEffect(() => { speedRef.current  = speed; },        [speed]);
+      useEffect(() => { wordsRef.current  = words; },        [words]);
+      useEffect(() => { indexRef.current  = currentIndex; }, [currentIndex]);
+      useEffect(() => { flyoutOpenRef.current = flyoutOpen; }, [flyoutOpen]);
+
+      // YouTube API
+      useEffect(() => {
+        window.onYouTubeIframeAPIReady = () => { ytReadyRef.current = true; setYtApiReady(true); };
+        if (!document.getElementById('yt-script')) {
+          const s = document.createElement('script');
+          s.id = 'yt-script'; s.src = 'https://www.youtube.com/iframe_api';
+          document.head.appendChild(s);
+        }
+      }, []);
+
+      // Playback engine
+      const tick = useCallback(() => {
+        if (statusRef.current !== 'playing') return;
+        const next = indexRef.current + 1;
+        if (next >= wordsRef.current.length) {
+          setStatus('finished'); statusRef.current = 'finished'; return;
+        }
+        setCurrentIndex(next); indexRef.current = next;
+        timeoutRef.current = setTimeout(tick, speedRef.current);
+      }, []);
+
+      const play = useCallback(() => {
+        if (!wordsRef.current.length || statusRef.current === 'finished') return;
+        clearTimeout(timeoutRef.current);
+        setStatus('playing'); statusRef.current = 'playing';
+        timeoutRef.current = setTimeout(tick, speedRef.current);
+      }, [tick]);
+
+      const pause = useCallback(() => {
+        clearTimeout(timeoutRef.current);
+        setStatus('paused'); statusRef.current = 'paused';
+      }, []);
+
+      const restart = useCallback(() => {
+        clearTimeout(timeoutRef.current);
+        setCurrentIndex(0); indexRef.current = 0;
+        setStatus('playing'); statusRef.current = 'playing';
+        timeoutRef.current = setTimeout(tick, speedRef.current);
+      }, [tick]);
+
+      useEffect(() => () => clearTimeout(timeoutRef.current), []);
+
+      // Text file
+      const handleTextFile = useCallback((file) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const parsed = e.target.result.split(/\s+/).filter(Boolean);
+          if (!parsed.length) return;
+          clearTimeout(timeoutRef.current);
+          setWords(parsed); wordsRef.current = parsed;
+          setCurrentIndex(0); indexRef.current = 0;
+          setStatus('paused'); statusRef.current = 'paused';
+        };
+        reader.readAsText(file);
+      }, []);
+
+      // Video file
+      const handleVideoFile = useCallback((file) => {
+        if (localUrlRef.current) URL.revokeObjectURL(localUrlRef.current);
+        const url = URL.createObjectURL(file);
+        localUrlRef.current = url;
+        setLocalUrl(url);
+        setActiveSource('local');
+        setVideoPaused(false);
+      }, []);
+
+      // YouTube URL — load and auto-switch
+      const handleYouTubeUrl = useCallback((id) => {
+        setYoutubeId(id);
+        setActiveSource('youtube');
+        setVideoPaused(false);
+      }, []);
+
+      // Source switching
+      const handleSourceChange = useCallback((src) => {
+        if (src === 'youtube' && !youtubeId) return;
+        if (src === 'local'   && !localUrl)  return;
+        setActiveSource(src);
+        if (src !== 'off') setVideoPaused(false);
+      }, [youtubeId, localUrl]);
+
+      // Auto-hide (3s, suppressed while flyout is open)
+      const resetHideTimer = useCallback(() => {
+        setControlsVisible(true);
+        clearTimeout(hideTimer.current);
+        if (!flyoutOpenRef.current) {
+          hideTimer.current = setTimeout(() => setControlsVisible(false), 3000);
+        }
+      }, []);
+
+      useEffect(() => {
+        window.addEventListener('mousemove', resetHideTimer);
+        resetHideTimer();
+        return () => { window.removeEventListener('mousemove', resetHideTimer); clearTimeout(hideTimer.current); };
+      }, [resetHideTimer]);
+
+      // Re-evaluate hide timer when flyout closes
+      useEffect(() => {
+        if (!flyoutOpen) resetHideTimer();
+      }, [flyoutOpen]);
+
+      // Keyboard shortcuts
+      useEffect(() => {
+        function onKey(e) {
+          const tag = document.activeElement && document.activeElement.tagName;
+          if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+          switch (e.key) {
+            case ' ':
+              e.preventDefault();
+              if (statusRef.current === 'playing') pause();
+              else if (statusRef.current === 'paused' || statusRef.current === 'finished') play();
+              break;
+            case 'r': case 'R':
+              e.preventDefault();
+              if (wordsRef.current.length) restart();
+              break;
+            case 'm': case 'M':
+              e.preventDefault();
+              setMuted(v => !v);
+              break;
+            case 'ArrowUp': case '+':
+              e.preventDefault();
+              setSpeed(v => { const n = Math.max(50, v - 50); speedRef.current = n; return n; });
+              break;
+            case 'ArrowDown': case '-':
+              e.preventDefault();
+              setSpeed(v => { const n = Math.min(2000, v + 50); speedRef.current = n; return n; });
+              break;
+            case 'Escape':
+              e.preventDefault();
+              setControlsVisible(v => !v);
+              break;
+          }
+        }
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+      }, [play, pause, restart]);
+
+      const hasFile     = words.length > 0;
+      const currentWord = hasFile ? words[currentIndex] : '';
+
+      return (
+        <div style={{ position: 'relative', width: '100vw', height: '100vh', background: '#111', overflow: 'hidden' }}>
+
+          {/* Layer 1 — Video */}
+          <VideoBackground
+            activeSource={activeSource} localUrl={localUrl}
+            youtubeId={youtubeId} ytApiReady={ytApiReady}
+            muted={muted} videoPaused={videoPaused}
+            ytReadyRef={ytReadyRef} ytPlayerRef={ytPlayerRef}
+          />
+
+          {/* Layer 2 — Word */}
+          <WordDisplay word={currentWord} fontSize={fontSize} />
+
+          {/* Layer 2 — Drop zone */}
+          <DropZone hasFile={hasFile} onTextFile={handleTextFile} onVideoFile={handleVideoFile} />
+
+          {/* Always-visible progress, top-right */}
+          {hasFile && (
+            <div style={{
+              position: 'absolute', top: 18, right: 22, zIndex: 25, pointerEvents: 'none',
+              color: 'rgba(255,255,255,0.2)', fontSize: 12, fontFamily: 'sans-serif',
+              letterSpacing: '0.05em', fontVariantNumeric: 'tabular-nums',
+            }}>
+              {status === 'finished' ? `${words.length} / ${words.length} — finished` : `${currentIndex + 1} / ${words.length}`}
+            </div>
+          )}
+
+          {/* Layer 3 — Auto-hiding controls overlay */}
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 30,
+            pointerEvents: 'none',
+            opacity: controlsVisible ? 1 : 0,
+            transition: 'opacity 0.25s',
+          }}>
+            {/* Bottom-center: control bar */}
+            <div style={{
+              position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+              pointerEvents: 'auto',
+            }}>
+              <ControlBar
+                status={status} speed={speed} fontSize={fontSize}
+                videoPaused={videoPaused} activeSource={activeSource} muted={muted}
+                hasLocal={!!localUrl} hasYoutube={!!youtubeId}
+                onPlay={play} onPause={pause} onRestart={restart}
+                onSpeedChange={v => { setSpeed(v); speedRef.current = v; }}
+                onFontSizeChange={setFontSize}
+                onVideoPlayPause={() => setVideoPaused(v => !v)}
+                onMuteToggle={() => setMuted(v => !v)}
+                onSourceChange={handleSourceChange}
+                onYouTubeUrl={handleYouTubeUrl}
+                onLocalVideoFile={handleVideoFile}
+                ytId={youtubeId}
+                flyoutOpen={flyoutOpen}
+                onFlyoutToggle={() => setFlyoutOpen(v => !v)}
+                hideTimerRef={hideTimer}
+                resetHideTimer={resetHideTimer}
+              />
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

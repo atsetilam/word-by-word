@@ -1,0 +1,27 @@
+{
+  "name": "word-by-word",
+  "version": "1.0.0",
+  "description": "Read text files one word at a time",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --mac"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.wordbyword.app",
+    "productName": "word-by-word",
+    "files": [
+      "index.html",
+      "main.js",
+      "package.json"
+    ],
+    "mac": {
+      "target": ["dmg", "zip"],
+      "category": "public.app-category.productivity"
+    }
+  }
+}
